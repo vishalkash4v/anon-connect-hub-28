@@ -39,7 +39,7 @@ const RandomChatSpinner: React.FC<RandomChatSpinnerProps> = ({ open, onClose }) 
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md" hideCloseButton>
+      <DialogContent className="sm:max-w-md [&>button]:hidden">
         <div className="text-center space-y-6 py-4">
           {/* Animated Icon */}
           <div className="relative">
