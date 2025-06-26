@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/contexts/UserContext';
-import { Search, Plus, User, MessageSquare, Users, Home as HomeIcon, Shuffle } from 'lucide-react';
+import { Search, Plus, User, MessageSquare, Users, Shuffle } from 'lucide-react';
 import GroupJoinModal from './GroupJoinModal';
 import CreateGroupModal from './CreateGroupModal';
 import RandomChatSpinner from './RandomChatSpinner';
@@ -60,7 +60,7 @@ const HomePage: React.FC<HomePageProps> = ({
   const onlineUsers = users.filter(user => user.id !== currentUser?.id).slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Header Section */}
       <div className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4">
@@ -167,7 +167,7 @@ const HomePage: React.FC<HomePageProps> = ({
                 {trendingGroups.map((group, index) => (
                   <Card 
                     key={group.id} 
-                    className="bg-white/90 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 cursor-pointer"
+                    className="bg-white/90 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 cursor-pointer animate-fade-in"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
                     <CardHeader className="pb-3">
@@ -207,12 +207,13 @@ const HomePage: React.FC<HomePageProps> = ({
               </div>
             </TabsContent>
             
+            
             <TabsContent value="new" className="animate-fade-in">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {groups.slice(-6).reverse().map((group, index) => (
                   <Card 
                     key={group.id} 
-                    className="bg-white/90 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                    className="bg-white/90 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 animate-fade-in"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
                     <CardHeader className="pb-3">
@@ -252,7 +253,7 @@ const HomePage: React.FC<HomePageProps> = ({
                 {groups.sort((a, b) => b.members.length - a.members.length).slice(0, 6).map((group, index) => (
                   <Card 
                     key={group.id} 
-                    className="bg-white/90 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                    className="bg-white/90 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 animate-fade-in"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
                     <CardHeader className="pb-3">
@@ -322,7 +323,7 @@ const HomePage: React.FC<HomePageProps> = ({
         )}
 
         {/* Chat Options Section */}
-        <div>
+        <div className="mb-20">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">💬 Chat Options</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 cursor-pointer">
@@ -385,109 +386,6 @@ const HomePage: React.FC<HomePageProps> = ({
               </CardContent>
             </Card>
           </div>
-        </div>
-      </div>
-
-      {/* Enhanced Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t shadow-lg z-50">
-        <div className="flex justify-around py-3 px-2">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`flex-col space-y-1 h-auto py-3 px-4 rounded-xl transition-all duration-300 transform ${
-              activeView === 'home' 
-                ? 'bg-blue-100 text-blue-600 scale-105 shadow-md' 
-                : 'text-gray-600 hover:bg-gray-100 hover:scale-105'
-            }`}
-            onClick={() => onViewChange('home')}
-          >
-            <HomeIcon className={`w-5 h-5 transition-all duration-300 ${
-              activeView === 'home' ? 'scale-110' : ''
-            }`} />
-            <span className="text-xs font-medium">Home</span>
-            {activeView === 'home' && (
-              <div className="w-4 h-0.5 bg-blue-600 rounded-full animate-fade-in"></div>
-            )}
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`flex-col space-y-1 h-auto py-3 px-4 rounded-xl transition-all duration-300 transform ${
-              activeView === 'search' 
-                ? 'bg-green-100 text-green-600 scale-105 shadow-md' 
-                : 'text-gray-600 hover:bg-gray-100 hover:scale-105'
-            }`}
-            onClick={() => {
-              onViewChange('search');
-              onShowSearch();
-            }}
-          >
-            <Search className={`w-5 h-5 transition-all duration-300 ${
-              activeView === 'search' ? 'scale-110' : ''
-            }`} />
-            <span className="text-xs font-medium">Search</span>
-            {activeView === 'search' && (
-              <div className="w-4 h-0.5 bg-green-600 rounded-full animate-fade-in"></div>
-            )}
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="flex-col space-y-1 h-auto py-3 px-4 rounded-xl transition-all duration-300 transform text-gray-600 hover:bg-gray-100 hover:scale-105"
-            onClick={() => setShowCreateGroup(true)}
-          >
-            <div className="relative">
-              <Plus className="w-5 h-5 transition-all duration-300 hover:rotate-90" />
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-            </div>
-            <span className="text-xs font-medium">New</span>
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`flex-col space-y-1 h-auto py-3 px-4 rounded-xl transition-all duration-300 transform ${
-              activeView === 'profile' 
-                ? 'bg-purple-100 text-purple-600 scale-105 shadow-md' 
-                : 'text-gray-600 hover:bg-gray-100 hover:scale-105'
-            }`}
-            onClick={() => {
-              onViewChange('profile');
-              onShowProfile();
-            }}
-          >
-            <User className={`w-5 h-5 transition-all duration-300 ${
-              activeView === 'profile' ? 'scale-110' : ''
-            }`} />
-            <span className="text-xs font-medium">Profile</span>
-            {activeView === 'profile' && (
-              <div className="w-4 h-0.5 bg-purple-600 rounded-full animate-fade-in"></div>
-            )}
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`flex-col space-y-1 h-auto py-3 px-4 rounded-xl transition-all duration-300 transform ${
-              activeView === 'chats' 
-                ? 'bg-pink-100 text-pink-600 scale-105 shadow-md' 
-                : 'text-gray-600 hover:bg-gray-100 hover:scale-105'
-            }`}
-            onClick={() => {
-              onViewChange('chats');
-              onShowChats();
-            }}
-          >
-            <MessageSquare className={`w-5 h-5 transition-all duration-300 ${
-              activeView === 'chats' ? 'scale-110' : ''
-            }`} />
-            <span className="text-xs font-medium">Chats</span>
-            {activeView === 'chats' && (
-              <div className="w-4 h-0.5 bg-pink-600 rounded-full animate-fade-in"></div>
-            )}
-          </Button>
         </div>
       </div>
 

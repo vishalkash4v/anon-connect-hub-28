@@ -170,3 +170,34 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Mobile responsive utilities */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .max-w-6xl {
+    @apply px-2;
+  }
+  
+  .grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3 {
+    @apply grid-cols-1;
+  }
+  
+  .grid-cols-1.md\:grid-cols-2.lg\:grid-cols-4 {
+    @apply grid-cols-2;
+  }
+}
+
+/* Ensure proper spacing for bottom navigation */
+.pb-20 {
+  padding-bottom: 5rem;
+}
+
+@media (max-width: 640px) {
+  .pb-20 {
+    padding-bottom: 6rem;
+  }
+}

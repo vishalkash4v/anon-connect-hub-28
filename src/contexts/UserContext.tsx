@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export interface User {
@@ -8,6 +7,7 @@ export interface User {
   email?: string;
   isAnonymous: boolean;
   avatar?: string;
+  bio?: string;
   lastSeen: Date;
 }
 
@@ -18,6 +18,7 @@ export interface Group {
   members: string[];
   createdBy: string;
   createdAt: Date;
+  updatedAt: Date;
   avatar?: string;
 }
 
@@ -37,6 +38,7 @@ export interface Chat {
   messages: Message[];
   lastMessage?: Message;
   unreadCount: number;
+  updatedAt: Date;
 }
 
 interface UserContextType {
@@ -45,6 +47,7 @@ interface UserContextType {
   groups: Group[];
   chats: Chat[];
   createUser: (userData: Partial<User>) => void;
+  updateUser: (userData: User) => void;
   createGroup: (groupData: { name: string; description?: string }) => void;
   joinGroup: (groupId: string) => void;
   startDirectChat: (userId: string) => string;
@@ -88,6 +91,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: userData.name,
       phone: userData.phone,
       email: userData.email,
+      bio: userData.bio,
       isAnonymous: !userData.name && !userData.phone && !userData.email,
       lastSeen: new Date(),
       avatar: userData.avatar
@@ -102,6 +106,16 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('currentUser', JSON.stringify(newUser));
   };
 
+  const updateUser = (userData: User) => {
+    setCurrentUser(userData);
+    setUsers(prev => {
+      const updated = prev.map(user => user.id === userData.id ? userData : user);
+      localStorage.setItem('users', JSON.stringify(updated));
+      return updated;
+    });
+    localStorage.setItem('currentUser', JSON.stringify(userData));
+  };
+
   const createGroup = (groupData: { name: string; description?: string }) => {
     if (!currentUser) return;
 
@@ -111,7 +125,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       description: groupData.description,
       members: [currentUser.id],
       createdBy: currentUser.id,
-      createdAt: new Date()
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
     setGroups(prev => {
@@ -127,7 +142,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setGroups(prev => {
       const updated = prev.map(group => 
         group.id === groupId && !group.members.includes(currentUser.id)
-          ? { ...group, members: [...group.members, currentUser.id] }
+          ? { ...group, members: [...group.members, currentUser.id], updatedAt: new Date() }
           : group
       );
       localStorage.setItem('groups', JSON.stringify(updated));
@@ -153,7 +168,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       type: 'direct',
       participants: [currentUser.id, userId],
       messages: [],
-      unreadCount: 0
+      unreadCount: 0,
+      updatedAt: new Date()
     };
 
     setChats(prev => {
@@ -196,7 +212,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? { 
               ...chat, 
               messages: [...chat.messages, newMessage],
-              lastMessage: newMessage
+              lastMessage: newMessage,
+              updatedAt: new Date()
             }
           : chat
       );
@@ -223,6 +240,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       groups,
       chats,
       createUser,
+      updateUser,
       createGroup,
       joinGroup,
       startDirectChat,
