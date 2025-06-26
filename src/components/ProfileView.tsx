@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,9 +8,10 @@ import { ArrowLeft, User, Mail, Phone, Users, MessageSquare, Calendar } from 'lu
 
 interface ProfileViewProps {
   onBack: () => void;
+  onEditProfile: () => void;
 }
 
-const ProfileView: React.FC<ProfileViewProps> = ({ onBack }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onEditProfile }) => {
   const { currentUser, groups, chats } = useUser();
 
   if (!currentUser) return null;
@@ -24,11 +24,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack }) => {
       <div className="max-w-4xl mx-auto p-4">
         {/* Header */}
         <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm p-4 mb-6">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" onClick={onBack}>
-              <ArrowLeft className="w-4 h-4" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" size="sm" onClick={onBack}>
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <h1 className="text-2xl font-bold text-gray-800">Profile</h1>
+            </div>
+            <Button onClick={onEditProfile} className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600">
+              Edit Profile
             </Button>
-            <h1 className="text-2xl font-bold text-gray-800">Profile</h1>
           </div>
         </div>
 

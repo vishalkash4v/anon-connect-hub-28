@@ -5,9 +5,11 @@ import HomePage from './HomePage';
 import ChatWindow from './ChatWindow';
 import UserSearch from './UserSearch';
 import ProfileView from './ProfileView';
+import ChatList from './ChatList';
+import ProfileEdit from './ProfileEdit';
 
 const ChatHome: React.FC = () => {
-  const [activeView, setActiveView] = useState<'home' | 'chat' | 'search' | 'profile'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'chat' | 'search' | 'profile' | 'chats' | 'profile-edit'>('home');
   const [activeChatId, setActiveChatId] = useState<string>('');
 
   const handleStartChat = (chatId: string) => {
@@ -37,6 +39,24 @@ const ChatHome: React.FC = () => {
     return (
       <ProfileView 
         onBack={() => setActiveView('home')}
+        onEditProfile={() => setActiveView('profile-edit')}
+      />
+    );
+  }
+
+  if (activeView === 'chats') {
+    return (
+      <ChatList 
+        onBack={() => setActiveView('home')}
+        onStartChat={handleStartChat}
+      />
+    );
+  }
+
+  if (activeView === 'profile-edit') {
+    return (
+      <ProfileEdit 
+        onBack={() => setActiveView('profile')}
       />
     );
   }
@@ -46,6 +66,9 @@ const ChatHome: React.FC = () => {
       onStartChat={handleStartChat}
       onShowSearch={() => setActiveView('search')}
       onShowProfile={() => setActiveView('profile')}
+      onShowChats={() => setActiveView('chats')}
+      activeView={activeView}
+      onViewChange={setActiveView}
     />
   );
 };
