@@ -43,28 +43,26 @@ export const useChatActions = (
     if (!currentUser) return null;
 
     try {
+      console.log('🎲 Starting random chat...');
       const response = await apiService.openRandomChat({ userId: currentUser.id });
       
-      if (response.chatId) {
-        const newChat: Chat = {
-          id: response.chatId,
-          type: 'random',
-          participants: [currentUser.id, response.otherUserId],
-          messages: [],
-          unreadCount: 0,
-          updatedAt: new Date()
-        };
-
-        const updatedChats = [...chats, newChat];
-        setChats(updatedChats);
-        saveToStorage.chats(updatedChats);
-
-        return response.chatId;
+      console.log('🎲 Random chat response:', response);
+      
+      if (response.status && response.data && response.data.matchedUser) {
+        const matchedUser = response.data.matchedUser;
+        
+        // Create or find existing direct chat with matched user
+        const chatId = startDirectChat(matchedUser._id);
+        
+        console.log('🎲 Random chat started with user:', matchedUser.name, 'chatId:', chatId);
+        
+        return chatId;
       }
     } catch (error) {
-      console.error('Error starting random chat:', error);
+      console.error('❌ Error starting random chat:', error);
     }
 
+    // Fallback to local random selection
     const availableUsers = users.filter(user => 
       user.id !== currentUser.id && 
       !chats.some(chat => chat.participants.includes(user.id))
@@ -78,6 +76,7 @@ export const useChatActions = (
 
   const openGroupChat = async (groupId: string, lastMessageId?: string, limit?: number): Promise<Message[]> => {
     try {
+      console.log('👥 Opening group chat:', groupId);
       const response = await apiService.openGroupChat({
         groupId,
         lastMessageId,
@@ -85,16 +84,44 @@ export const useChatActions = (
       });
 
       if (response.messages) {
-        return response.messages.map((msg: any) => ({
-          id: msg.id,
-          senderId: msg.senderId,
-          content: msg.content,
-          timestamp: new Date(msg.timestamp),
+        const messages = response.messages.map((msg: any) => ({
+          id: msg._id || msg.id,
+          senderId: msg.from || msg.senderId,
+          content: msg.message || msg.content,
+          timestamp: new Date(msg.createdAt || msg.timestamp),
           type: msg.type || 'text'
         }));
+
+        // Subscribe to group messages for real-time updates
+        socketService.subscribeToGroupMessages(groupId, (socketMessage) => {
+          const newMessage: Message = {
+            id: socketMessage._id,
+            senderId: socketMessage.from,
+            content: socketMessage.message,
+            timestamp: new Date(socketMessage.createdAt),
+            type: 'text'
+          };
+
+          setChats(prev => {
+            const updated = prev.map(chat => 
+              chat.groupId === groupId
+                ? { 
+                    ...chat, 
+                    messages: [...chat.messages, newMessage],
+                    lastMessage: newMessage,
+                    updatedAt: new Date()
+                  }
+                : chat
+            );
+            saveToStorage.chats(updated);
+            return updated;
+          });
+        });
+
+        return messages;
       }
     } catch (error) {
-      console.error('Error opening group chat:', error);
+      console.error('❌ Error opening group chat:', error);
     }
 
     const chat = chats.find(c => c.groupId === groupId);
@@ -105,6 +132,7 @@ export const useChatActions = (
     if (!currentUser) return [];
 
     try {
+      console.log('💬 Opening one-to-one chat with:', otherUserId);
       const response = await apiService.openOneToOneChat({
         userId: currentUser.id,
         otherUserId,
@@ -114,15 +142,15 @@ export const useChatActions = (
 
       if (response.messages) {
         return response.messages.map((msg: any) => ({
-          id: msg.id,
-          senderId: msg.senderId,
-          content: msg.content,
-          timestamp: new Date(msg.timestamp),
+          id: msg._id || msg.id,
+          senderId: msg.from || msg.senderId,
+          content: msg.message || msg.content,
+          timestamp: new Date(msg.createdAt || msg.timestamp),
           type: msg.type || 'text'
         }));
       }
     } catch (error) {
-      console.error('Error opening one-to-one chat:', error);
+      console.error('❌ Error opening one-to-one chat:', error);
     }
 
     const chat = chats.find(c => 
@@ -147,6 +175,7 @@ export const useChatActions = (
       type: 'text'
     };
 
+    // Send via socket
     if (chat.type === 'direct') {
       const otherUserId = chat.participants.find(id => id !== currentUser.id);
       if (otherUserId) {
@@ -166,6 +195,7 @@ export const useChatActions = (
       });
     }
 
+    // Update local state
     const updatedChats = chats.map(c => 
       c.id === chatId
         ? { 

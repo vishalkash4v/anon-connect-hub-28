@@ -44,30 +44,40 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (currentUser) {
+      console.log('🔌 Setting up socket for user:', currentUser.id);
       socketService.connect();
+      
       setTimeout(() => {
-        socketService.join(currentUser.id);
+        if (socketService.isConnected()) {
+          socketService.join(currentUser.id);
+        }
       }, 1000);
 
-      socketService.onMessage((message) => {
+      // Handle incoming messages
+      socketService.onMessage((socketMessage) => {
+        console.log('📨 Processing incoming message:', socketMessage);
+        
         const newMessage: Message = {
-          id: message.id,
-          senderId: message.fromUserId,
-          content: message.message,
-          timestamp: new Date(message.timestamp),
+          id: socketMessage._id,
+          senderId: socketMessage.from,
+          content: socketMessage.message,
+          timestamp: new Date(socketMessage.createdAt),
           type: 'text'
         };
 
         setChats(prev => {
-          const chatId = message.type === 'private' 
+          const chatId = socketMessage.type === 'private' 
             ? prev.find(c => 
                 c.type === 'direct' && 
                 c.participants.includes(currentUser.id) && 
-                c.participants.includes(message.fromUserId)
+                c.participants.includes(socketMessage.from)
               )?.id
-            : message.groupId;
+            : socketMessage.groupId;
 
-          if (!chatId) return prev;
+          if (!chatId) {
+            console.log('❌ No matching chat found for message');
+            return prev;
+          }
 
           const updated = prev.map(chat => 
             chat.id === chatId
@@ -79,20 +89,24 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
               : chat
           );
+          
           localStorage.setItem('chats', JSON.stringify(updated));
           return updated;
         });
       });
 
       socketService.onUserOnline((userId) => {
+        console.log('🟢 User came online:', userId);
         setOnlineUsers(prev => [...prev.filter(id => id !== userId), userId]);
       });
 
       socketService.onUserOffline((userId) => {
+        console.log('🔴 User went offline:', userId);
         setOnlineUsers(prev => prev.filter(id => id !== userId));
       });
 
       socketService.onTyping((fromUserId) => {
+        console.log('⌨️ User started typing:', fromUserId);
         setTypingUsers(prev => {
           const newMap = new Map(prev);
           newMap.set(fromUserId, 'typing');
@@ -101,6 +115,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       socketService.onStopTyping((fromUserId) => {
+        console.log('⏹️ User stopped typing:', fromUserId);
         setTypingUsers(prev => {
           const newMap = new Map(prev);
           newMap.delete(fromUserId);

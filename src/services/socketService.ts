@@ -2,13 +2,13 @@
 import { io, Socket } from 'socket.io-client';
 
 interface SocketMessage {
-  id: string;
-  fromUserId: string;
-  toUserId?: string;
+  _id: string;
+  from: string;
+  to?: string;
   groupId?: string;
   message: string;
   type: 'private' | 'group';
-  timestamp: string;
+  createdAt: string;
 }
 
 interface TypingData {
@@ -27,12 +27,17 @@ class SocketService {
 
   connect() {
     if (this.socket?.connected) {
+      console.log('Socket already connected');
       return;
     }
 
+    console.log('Connecting to socket...');
     this.socket = io("https://rcapis.best-smm.in", {
       transports: ['websocket', 'polling'],
       timeout: 20000,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     this.setupEventListeners();
@@ -42,52 +47,54 @@ class SocketService {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
-      console.log('Socket connected:', this.socket?.id);
+      console.log('✅ Socket connected:', this.socket?.id);
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Socket disconnected');
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ Socket disconnected:', reason);
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
+      console.error('🔥 Socket connection error:', error);
     });
 
     // Listen for private messages
     this.socket.on('receive-message', (message: SocketMessage) => {
-      console.log('Received message:', message);
+      console.log('📨 Received private message:', message);
       this.messageCallbacks.forEach(callback => callback(message));
     });
 
     // Listen for user online status
     this.socket.on('user-online', (userId: string) => {
-      console.log('User online:', userId);
+      console.log('🟢 User online:', userId);
       this.userOnlineCallbacks.forEach(callback => callback(userId));
     });
 
     // Listen for user offline status
     this.socket.on('user-offline', (userId: string) => {
-      console.log('User offline:', userId);
+      console.log('🔴 User offline:', userId);
       this.userOfflineCallbacks.forEach(callback => callback(userId));
     });
 
     // Listen for typing indicators
     this.socket.on('user-typing', (fromUserId: string) => {
-      console.log('User typing:', fromUserId);
+      console.log('⌨️ User typing:', fromUserId);
       this.typingCallbacks.forEach(callback => callback(fromUserId));
     });
 
     // Listen for stop typing indicators
     this.socket.on('user-stop-typing', (fromUserId: string) => {
-      console.log('User stopped typing:', fromUserId);
+      console.log('⏹️ User stopped typing:', fromUserId);
       this.stopTypingCallbacks.forEach(callback => callback(fromUserId));
     });
   }
 
   join(userId: string) {
     if (this.socket?.connected) {
-      console.log('Joining socket with userId:', userId);
+      console.log('🔌 Joining socket with userId:', userId);
       this.socket.emit('join', userId);
+    } else {
+      console.error('❌ Cannot join - socket not connected');
     }
   }
 
@@ -99,19 +106,30 @@ class SocketService {
     type: 'private' | 'group';
   }) {
     if (this.socket?.connected) {
-      console.log('Sending message:', data);
-      this.socket.emit('send-message', data);
+      console.log('📤 Sending message:', data);
+      // Match server's expected format
+      this.socket.emit('send-message', {
+        fromUserId: data.fromUserId,
+        toUserId: data.toUserId,
+        groupId: data.groupId,
+        message: data.message,
+        type: data.type
+      });
+    } else {
+      console.error('❌ Cannot send message - socket not connected');
     }
   }
 
   sendTyping(data: { fromUserId: string; toUserId: string }) {
     if (this.socket?.connected) {
+      console.log('⌨️ Sending typing indicator:', data);
       this.socket.emit('typing', data);
     }
   }
 
   sendStopTyping(data: { fromUserId: string; toUserId: string }) {
     if (this.socket?.connected) {
+      console.log('⏹️ Sending stop typing:', data);
       this.socket.emit('stop-typing', data);
     }
   }
@@ -119,8 +137,13 @@ class SocketService {
   subscribeToGroupMessages(groupId: string, callback: (message: SocketMessage) => void) {
     const eventName = `group-${groupId}-new-message`;
     
+    console.log('👥 Subscribing to group messages:', eventName);
+    
     if (this.socket) {
-      this.socket.on(eventName, callback);
+      this.socket.on(eventName, (message: SocketMessage) => {
+        console.log('📨 Received group message:', message);
+        callback(message);
+      });
     }
 
     // Store callback for cleanup
@@ -132,6 +155,8 @@ class SocketService {
 
   unsubscribeFromGroupMessages(groupId: string) {
     const eventName = `group-${groupId}-new-message`;
+    
+    console.log('👥 Unsubscribing from group messages:', eventName);
     
     if (this.socket) {
       this.socket.off(eventName);
@@ -162,7 +187,7 @@ class SocketService {
 
   disconnect() {
     if (this.socket) {
-      console.log('Disconnecting socket');
+      console.log('🔌 Disconnecting socket');
       this.socket.disconnect();
       this.socket = null;
     }
