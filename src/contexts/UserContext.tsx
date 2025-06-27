@@ -200,7 +200,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const newUser: User = {
-        id: apiResponse.userId || Date.now().toString(),
+        id: apiResponse.userId, // Use the API-provided ID
         name: userData.name,
         phone: userData.phone,
         email: userData.email,
@@ -231,9 +231,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         variant: "destructive"
       });
       
-      // Fallback to local creation
-      const newUser: User = {
-        id: Date.now().toString(),
+      // Fallback to local creation only if API completely fails
+      const fallbackUser: User = {
+        id: `local_${Date.now()}`, // Use a prefix to distinguish local IDs
         name: userData.name,
         phone: userData.phone,
         email: userData.email,
@@ -243,13 +243,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar: userData.avatar
       };
 
-      setCurrentUser(newUser);
+      setCurrentUser(fallbackUser);
       setUsers(prev => {
-        const updated = [...prev, newUser];
+        const updated = [...prev, fallbackUser];
         localStorage.setItem('users', JSON.stringify(updated));
         return updated;
       });
-      localStorage.setItem('currentUser', JSON.stringify(newUser));
+      localStorage.setItem('currentUser', JSON.stringify(fallbackUser));
     } finally {
       setLoading(false);
     }
@@ -336,7 +336,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       const newGroup: Group = {
-        id: apiResponse.groupId || Date.now().toString(),
+        id: apiResponse.groupId, // Use the API-provided ID
         name: groupData.name,
         description: groupData.description,
         members: [currentUser.id],
@@ -365,7 +365,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Fallback to local creation
       const newGroup: Group = {
-        id: Date.now().toString(),
+        id: `local_group_${Date.now()}`, // Use a prefix for local IDs
         name: groupData.name,
         description: groupData.description,
         members: [currentUser.id],
@@ -445,7 +445,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const newChat: Chat = {
-      id: Date.now().toString(),
+      id: `chat_${currentUser.id}_${userId}`, // Use a deterministic ID for direct chats
       type: 'direct',
       participants: [currentUser.id, userId],
       messages: [],
@@ -470,7 +470,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (response.chatId) {
         const newChat: Chat = {
-          id: response.chatId,
+          id: response.chatId, // Use the API-provided chat ID
           type: 'random',
           participants: [currentUser.id, response.otherUserId],
           messages: [],
@@ -568,7 +568,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!chat) return;
 
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate unique message ID
       senderId: currentUser.id,
       content,
       timestamp: new Date(),
