@@ -124,6 +124,23 @@ class ApiService {
   async search(data: SearchRequest) {
     return this.makeRequest('/search', data);
   }
+
+  async getGroupsOverview() {
+    try {
+      const response = await fetch(`${BASE_URL}/get-groups-overview`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('API Error for /get-groups-overview:', error);
+      throw error;
+    }
+  }
 }
 
 export const apiService = new ApiService();

@@ -53,6 +53,9 @@ interface UserContextType {
   loading: boolean;
   onlineUsers: string[];
   typingUsers: Map<string, string>;
+  trendingGroups: Group[];
+  newGroups: Group[];
+  popularGroups: Group[];
   createUser: (userData: Partial<User>) => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<void>;
   getProfile: (userId: string) => Promise<User | null>;
@@ -68,6 +71,7 @@ interface UserContextType {
   searchUsers: (query: string) => Promise<User[]>;
   searchGroups: (query: string) => Promise<Group[]>;
   globalSearch: (query: string) => Promise<any[]>;
+  loadGroupsOverview: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -80,6 +84,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
+  const [trendingGroups, setTrendingGroups] = useState<Group[]>([]);
+  const [newGroups, setNewGroups] = useState<Group[]>([]);
+  const [popularGroups, setPopularGroups] = useState<Group[]>([]);
 
   useEffect(() => {
     // Load data from localStorage
@@ -200,13 +207,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const newUser: User = {
-        id: apiResponse.userId, // Use the API-provided ID
-        name: userData.name,
-        phone: userData.phone,
-        email: userData.email,
-        username: apiResponse.username,
+        id: apiResponse.data._id, // Use the _id field from API response
+        name: apiResponse.data.name,
+        phone: apiResponse.data.phone,
+        email: apiResponse.data.email,
+        username: apiResponse.data.username,
         bio: userData.bio,
-        isAnonymous: !userData.name && !userData.phone && !userData.email,
+        isAnonymous: apiResponse.data.isAnonymous,
         lastSeen: new Date(),
         avatar: userData.avatar
       };
@@ -336,7 +343,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       const newGroup: Group = {
-        id: apiResponse.groupId, // Use the API-provided ID
+        id: apiResponse.data._id, // Use the _id field from API response
         name: groupData.name,
         description: groupData.description,
         members: [currentUser.id],
@@ -350,6 +357,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('groups', JSON.stringify(updated));
         return updated;
       });
+
+      // Reload groups overview to get updated data
+      await loadGroupsOverview();
 
       toast({
         title: "Success",
@@ -381,6 +391,35 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGroupsOverview = async () => {
+    try {
+      const response = await apiService.getGroupsOverview();
+      
+      if (response.status && response.data) {
+        // Convert API response to Group format
+        const convertApiGroup = (apiGroup: any): Group => ({
+          id: apiGroup._id,
+          name: apiGroup.group_name,
+          description: apiGroup.description || '',
+          members: [],
+          createdBy: '',
+          createdAt: new Date(apiGroup.createdAt || Date.now()),
+          updatedAt: new Date(apiGroup.createdAt || Date.now())
+        });
+
+        setTrendingGroups(response.data.trending?.map(convertApiGroup) || []);
+        setNewGroups(response.data.new?.map(convertApiGroup) || []);
+        setPopularGroups(response.data.popular?.map(convertApiGroup) || []);
+      }
+    } catch (error) {
+      console.error('Error loading groups overview:', error);
+      // Fallback to existing local groups
+      setTrendingGroups(groups.slice(0, 5));
+      setNewGroups(groups.slice(-5).reverse());
+      setPopularGroups(groups.sort((a, b) => b.members.length - a.members.length).slice(0, 5));
     }
   };
 
@@ -719,6 +758,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loading,
       onlineUsers,
       typingUsers,
+      trendingGroups,
+      newGroups,
+      popularGroups,
       createUser,
       updateUser,
       getProfile,
@@ -733,7 +775,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sendStopTyping,
       searchUsers,
       searchGroups,
-      globalSearch
+      globalSearch,
+      loadGroupsOverview
     }}>
       {children}
     </UserContext.Provider>

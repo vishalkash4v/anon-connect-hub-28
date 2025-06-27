@@ -37,7 +37,22 @@ const HomePage: React.FC<HomePageProps> = ({
   const [activeTab, setActiveTab] = useState('trending');
   const [searchLoading, setSearchLoading] = useState(false);
   
-  const { currentUser, groups, users, startRandomChat, searchUsers } = useUser();
+  const { 
+    currentUser, 
+    groups, 
+    users, 
+    startRandomChat, 
+    searchUsers,
+    trendingGroups,
+    newGroups,
+    popularGroups,
+    loadGroupsOverview
+  } = useUser();
+
+  // Load groups overview on component mount
+  useEffect(() => {
+    loadGroupsOverview();
+  }, [loadGroupsOverview]);
 
   // Handle search with proper async handling
   useEffect(() => {
@@ -87,7 +102,6 @@ const HomePage: React.FC<HomePageProps> = ({
     setShowJoinGroup(true);
   };
 
-  const trendingGroups = groups.slice(0, 6);
   const onlineUsers = users.filter(user => user.id !== currentUser?.id).slice(0, 4);
 
   return (
@@ -221,7 +235,7 @@ const HomePage: React.FC<HomePageProps> = ({
                             </Badge>
                             <div className="flex items-center">
                               <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                              <span className="text-xs text-gray-500">Online</span>
+                              <span className="text-xs text-gray-500">Trending</span>
                             </div>
                           </div>
                         </div>
@@ -245,7 +259,7 @@ const HomePage: React.FC<HomePageProps> = ({
             
             <TabsContent value="new" className="animate-fade-in">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {groups.slice(-6).reverse().map((group, index) => (
+                {newGroups.map((group, index) => (
                   <Card 
                     key={group.id} 
                     className="bg-white/90 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 animate-fade-in"
@@ -285,7 +299,7 @@ const HomePage: React.FC<HomePageProps> = ({
             
             <TabsContent value="popular" className="animate-fade-in">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {groups.sort((a, b) => b.members.length - a.members.length).slice(0, 6).map((group, index) => (
+                {popularGroups.map((group, index) => (
                   <Card 
                     key={group.id} 
                     className="bg-white/90 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 animate-fade-in"

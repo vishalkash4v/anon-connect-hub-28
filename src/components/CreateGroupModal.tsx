@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,12 +19,12 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose }) =>
   const [isLoading, setIsLoading] = useState(false);
   const { createGroup } = useUser();
 
-  const handleCreateGroup = async () => {
+  const handleCreateGroup = useCallback(async () => {
     if (!groupName.trim()) return;
     
     setIsLoading(true);
     try {
-      createGroup({
+      await createGroup({
         name: groupName.trim(),
         description: description.trim() || undefined
       });
@@ -38,10 +38,18 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose }) =>
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [groupName, description, createGroup, onClose]);
+
+  const handleClose = useCallback(() => {
+    // Reset form when closing
+    setGroupName('');
+    setDescription('');
+    setIsLoading(false);
+    onClose();
+  }, [onClose]);
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center">
@@ -109,7 +117,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose }) =>
           <div className="flex space-x-3">
             <Button 
               variant="outline" 
-              onClick={onClose}
+              onClick={handleClose}
               className="flex-1"
               disabled={isLoading}
             >
