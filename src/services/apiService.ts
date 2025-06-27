@@ -13,8 +13,21 @@ export interface JoinAnonymousRequest {
   email?: string;
 }
 
+export interface GetProfileRequest {
+  userId: string;
+}
+
+export interface UpdateProfileRequest {
+  userId: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
 export interface CreateGroupRequest {
   group_name: string;
+  description?: string;
+  createdBy?: string;
 }
 
 export interface JoinGroupRequest {
@@ -22,10 +35,27 @@ export interface JoinGroupRequest {
   userId: string;
 }
 
+export interface OpenGroupChatRequest {
+  groupId: string;
+  lastMessageId?: string;
+  limit?: number;
+}
+
+export interface OpenOneToOneChatRequest {
+  userId: string;
+  otherUserId: string;
+  lastMessageId?: string;
+  limit?: number;
+}
+
+export interface OpenRandomChatRequest {
+  userId: string;
+}
+
 export interface SearchRequest {
+  query?: string;
   groupId?: string;
   userId?: string;
-  query?: string;
 }
 
 class ApiService {
@@ -59,8 +89,16 @@ class ApiService {
     return this.makeRequest('/create-profile', data);
   }
 
-  async joinAnonymous(data: JoinAnonymousRequest) {
+  async joinAnonymous(data: JoinAnonymousRequest = {}) {
     return this.makeRequest('/join-anonymous', data);
+  }
+
+  async getProfile(data: GetProfileRequest) {
+    return this.makeRequest('/get-profile', data);
+  }
+
+  async updateProfile(data: UpdateProfileRequest) {
+    return this.makeRequest('/update-profile', data);
   }
 
   async createGroup(data: CreateGroupRequest) {
@@ -69,6 +107,18 @@ class ApiService {
 
   async joinGroup(data: JoinGroupRequest) {
     return this.makeRequest('/join-group', data);
+  }
+
+  async openGroupChat(data: OpenGroupChatRequest) {
+    return this.makeRequest('/open-group-chat', data);
+  }
+
+  async openOneToOneChat(data: OpenOneToOneChatRequest) {
+    return this.makeRequest('/open-one-to-one-chat', data);
+  }
+
+  async openRandomChat(data: OpenRandomChatRequest) {
+    return this.makeRequest('/open-random-chat', data);
   }
 
   async search(data: SearchRequest) {

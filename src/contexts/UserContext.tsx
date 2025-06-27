@@ -8,6 +8,7 @@ export interface User {
   name?: string;
   phone?: string;
   email?: string;
+  username?: string;
   isAnonymous: boolean;
   avatar?: string;
   bio?: string;
@@ -35,7 +36,7 @@ export interface Message {
 
 export interface Chat {
   id: string;
-  type: 'direct' | 'group';
+  type: 'direct' | 'group' | 'random';
   participants: string[];
   groupId?: string;
   messages: Message[];
@@ -51,14 +52,18 @@ interface UserContextType {
   chats: Chat[];
   loading: boolean;
   createUser: (userData: Partial<User>) => Promise<void>;
-  updateUser: (userData: User) => void;
+  updateUser: (userData: Partial<User>) => Promise<void>;
+  getProfile: (userId: string) => Promise<User | null>;
   createGroup: (groupData: { name: string; description?: string }) => Promise<void>;
   joinGroup: (groupId: string) => Promise<void>;
   startDirectChat: (userId: string) => string;
-  startRandomChat: () => string | null;
+  startRandomChat: () => Promise<string | null>;
+  openGroupChat: (groupId: string, lastMessageId?: string, limit?: number) => Promise<Message[]>;
+  openOneToOneChat: (otherUserId: string, lastMessageId?: string, limit?: number) => Promise<Message[]>;
   sendMessage: (chatId: string, content: string) => void;
   searchUsers: (query: string) => Promise<User[]>;
   searchGroups: (query: string) => Promise<Group[]>;
+  globalSearch: (query: string) => Promise<any[]>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -117,6 +122,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: userData.name,
         phone: userData.phone,
         email: userData.email,
+        username: apiResponse.username,
         bio: userData.bio,
         isAnonymous: !userData.name && !userData.phone && !userData.email,
         lastSeen: new Date(),
@@ -167,14 +173,73 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateUser = (userData: User) => {
-    setCurrentUser(userData);
-    setUsers(prev => {
-      const updated = prev.map(user => user.id === userData.id ? userData : user);
-      localStorage.setItem('users', JSON.stringify(updated));
-      return updated;
-    });
-    localStorage.setItem('currentUser', JSON.stringify(userData));
+  const updateUser = async (userData: Partial<User>) => {
+    if (!currentUser) return;
+    
+    setLoading(true);
+    try {
+      await apiService.updateProfile({
+        userId: currentUser.id,
+        name: userData.name,
+        phone: userData.phone,
+        email: userData.email
+      });
+
+      const updatedUser = { ...currentUser, ...userData };
+      setCurrentUser(updatedUser);
+      setUsers(prev => {
+        const updated = prev.map(user => user.id === updatedUser.id ? updatedUser : user);
+        localStorage.setItem('users', JSON.stringify(updated));
+        return updated;
+      });
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully!"
+      });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive"
+      });
+      
+      // Fallback to local update
+      const updatedUser = { ...currentUser, ...userData };
+      setCurrentUser(updatedUser);
+      setUsers(prev => {
+        const updated = prev.map(user => user.id === updatedUser.id ? updatedUser : user);
+        localStorage.setItem('users', JSON.stringify(updated));
+        return updated;
+      });
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getProfile = async (userId: string): Promise<User | null> => {
+    try {
+      const response = await apiService.getProfile({ userId });
+      if (response.user) {
+        return {
+          id: response.user.id,
+          name: response.user.name,
+          phone: response.user.phone,
+          email: response.user.email,
+          username: response.user.username,
+          isAnonymous: response.user.isAnonymous,
+          lastSeen: new Date(response.user.createdAt || Date.now())
+        };
+      }
+    } catch (error) {
+      console.error('Error getting profile:', error);
+    }
+    
+    // Fallback to local search
+    return users.find(user => user.id === userId) || null;
   };
 
   const createGroup = async (groupData: { name: string; description?: string }) => {
@@ -183,7 +248,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const apiResponse = await apiService.createGroup({
-        group_name: groupData.name
+        group_name: groupData.name,
+        description: groupData.description,
+        createdBy: currentUser.id
       });
 
       const newGroup: Group = {
@@ -313,9 +380,35 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newChat.id;
   };
 
-  const startRandomChat = (): string | null => {
+  const startRandomChat = async (): Promise<string | null> => {
     if (!currentUser) return null;
 
+    try {
+      const response = await apiService.openRandomChat({ userId: currentUser.id });
+      
+      if (response.chatId) {
+        const newChat: Chat = {
+          id: response.chatId,
+          type: 'random',
+          participants: [currentUser.id, response.otherUserId],
+          messages: [],
+          unreadCount: 0,
+          updatedAt: new Date()
+        };
+
+        setChats(prev => {
+          const updated = [...prev, newChat];
+          localStorage.setItem('chats', JSON.stringify(updated));
+          return updated;
+        });
+
+        return response.chatId;
+      }
+    } catch (error) {
+      console.error('Error starting random chat:', error);
+    }
+
+    // Fallback to local random matching
     const availableUsers = users.filter(user => 
       user.id !== currentUser.id && 
       !chats.some(chat => chat.participants.includes(user.id))
@@ -325,6 +418,65 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const randomUser = availableUsers[Math.floor(Math.random() * availableUsers.length)];
     return startDirectChat(randomUser.id);
+  };
+
+  const openGroupChat = async (groupId: string, lastMessageId?: string, limit?: number): Promise<Message[]> => {
+    try {
+      const response = await apiService.openGroupChat({
+        groupId,
+        lastMessageId,
+        limit: limit || 20
+      });
+
+      if (response.messages) {
+        return response.messages.map((msg: any) => ({
+          id: msg.id,
+          senderId: msg.senderId,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp),
+          type: msg.type || 'text'
+        }));
+      }
+    } catch (error) {
+      console.error('Error opening group chat:', error);
+    }
+
+    // Fallback to local messages
+    const chat = chats.find(c => c.groupId === groupId);
+    return chat?.messages || [];
+  };
+
+  const openOneToOneChat = async (otherUserId: string, lastMessageId?: string, limit?: number): Promise<Message[]> => {
+    if (!currentUser) return [];
+
+    try {
+      const response = await apiService.openOneToOneChat({
+        userId: currentUser.id,
+        otherUserId,
+        lastMessageId,
+        limit: limit || 20
+      });
+
+      if (response.messages) {
+        return response.messages.map((msg: any) => ({
+          id: msg.id,
+          senderId: msg.senderId,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp),
+          type: msg.type || 'text'
+        }));
+      }
+    } catch (error) {
+      console.error('Error opening one-to-one chat:', error);
+    }
+
+    // Fallback to local messages
+    const chat = chats.find(c => 
+      c.type === 'direct' && 
+      c.participants.includes(currentUser.id) && 
+      c.participants.includes(otherUserId)
+    );
+    return chat?.messages || [];
   };
 
   const sendMessage = (chatId: string, content: string) => {
@@ -358,14 +510,23 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!query.trim()) return [];
 
     try {
-      const apiResponse = await apiService.search({
-        userId: currentUser?.id,
-        query
-      });
+      const apiResponse = await apiService.search({ query });
 
-      // If API returns users, use them, otherwise fallback to local search
-      if (apiResponse.users) {
-        return apiResponse.users.filter((user: any) => user.id !== currentUser?.id);
+      if (apiResponse.data) {
+        const users = apiResponse.data
+          .filter((item: any) => item.type === 'user')
+          .map((user: any) => ({
+            id: user.id,
+            name: user.name,
+            phone: user.phone,
+            email: user.email,
+            username: user.username,
+            isAnonymous: user.isAnonymous,
+            lastSeen: new Date(user.createdAt || Date.now())
+          }))
+          .filter((user: User) => user.id !== currentUser?.id);
+        
+        return users;
       }
     } catch (error) {
       console.error('Error searching users:', error);
@@ -376,7 +537,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user.id !== currentUser?.id &&
       (user.name?.toLowerCase().includes(query.toLowerCase()) ||
        user.email?.toLowerCase().includes(query.toLowerCase()) ||
-       user.phone?.includes(query))
+       user.phone?.includes(query) ||
+       user.username?.toLowerCase().includes(query.toLowerCase()))
     );
   };
 
@@ -384,14 +546,22 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!query.trim()) return [];
 
     try {
-      const apiResponse = await apiService.search({
-        groupId: currentUser?.id,
-        query
-      });
+      const apiResponse = await apiService.search({ query });
 
-      // If API returns groups, use them, otherwise fallback to local search
-      if (apiResponse.groups) {
-        return apiResponse.groups;
+      if (apiResponse.data) {
+        const groups = apiResponse.data
+          .filter((item: any) => item.type === 'group')
+          .map((group: any) => ({
+            id: group.id,
+            name: group.group_name,
+            description: group.description,
+            members: [],
+            createdBy: '',
+            createdAt: new Date(group.createdAt),
+            updatedAt: new Date(group.createdAt)
+          }));
+        
+        return groups;
       }
     } catch (error) {
       console.error('Error searching groups:', error);
@@ -404,6 +574,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
+  const globalSearch = async (query: string): Promise<any[]> => {
+    if (!query.trim()) return [];
+
+    try {
+      const apiResponse = await apiService.search({ query });
+      return apiResponse.data || [];
+    } catch (error) {
+      console.error('Error in global search:', error);
+      return [];
+    }
+  };
+
   return (
     <UserContext.Provider value={{
       currentUser,
@@ -413,13 +595,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loading,
       createUser,
       updateUser,
+      getProfile,
       createGroup,
       joinGroup,
       startDirectChat,
       startRandomChat,
+      openGroupChat,
+      openOneToOneChat,
       sendMessage,
       searchUsers,
-      searchGroups
+      searchGroups,
+      globalSearch
     }}>
       {children}
     </UserContext.Provider>

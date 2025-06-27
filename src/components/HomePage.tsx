@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,13 +29,39 @@ const HomePage: React.FC<HomePageProps> = ({
   onViewChange 
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showJoinGroup, setShowJoinGroup] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [showRandomChat, setShowRandomChat] = useState(false);
   const [activeTab, setActiveTab] = useState('trending');
+  const [searchLoading, setSearchLoading] = useState(false);
   
   const { currentUser, groups, users, startRandomChat, searchUsers } = useUser();
+
+  // Handle search with proper async handling
+  useEffect(() => {
+    const handleSearch = async () => {
+      if (!searchQuery.trim()) {
+        setSearchResults([]);
+        return;
+      }
+
+      setSearchLoading(true);
+      try {
+        const results = await searchUsers(searchQuery);
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(handleSearch, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, searchUsers]);
 
   const handleRandomChat = () => {
     setShowRandomChat(true);
@@ -55,12 +81,11 @@ const HomePage: React.FC<HomePageProps> = ({
     setShowJoinGroup(true);
   };
 
-  const searchResults = searchUsers(searchQuery);
   const trendingGroups = groups.slice(0, 6);
   const onlineUsers = users.filter(user => user.id !== currentUser?.id).slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 pb-20">
       {/* Header Section */}
       <div className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4">
@@ -115,7 +140,12 @@ const HomePage: React.FC<HomePageProps> = ({
                 <CardTitle className="text-lg">Search Results</CardTitle>
               </CardHeader>
               <CardContent>
-                {searchResults.length === 0 ? (
+                {searchLoading ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-gray-500 mt-2">Searching...</p>
+                  </div>
+                ) : searchResults.length === 0 ? (
                   <p className="text-gray-500 text-center py-4">No results found for "{searchQuery}"</p>
                 ) : (
                   <div className="space-y-3">
@@ -206,7 +236,6 @@ const HomePage: React.FC<HomePageProps> = ({
                 ))}
               </div>
             </TabsContent>
-            
             
             <TabsContent value="new" className="animate-fade-in">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
