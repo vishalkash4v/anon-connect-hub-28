@@ -37,7 +37,7 @@ export const useSearchActions = (
       console.error('❌ Error searching users via API:', error);
     }
 
-    // Fallback to local search
+    // Fallback to local search only if API fails
     const localResults = users.filter(user => 
       user.id !== currentUser?.id &&
       (user.name?.toLowerCase().includes(query.toLowerCase()) ||
@@ -48,7 +48,7 @@ export const useSearchActions = (
 
     console.log('✅ Found users locally:', localResults.length);
     return localResults;
-  }, [currentUser, users]);
+  }, [currentUser?.id, users]);
 
   const searchGroups = useCallback(async (query: string): Promise<Group[]> => {
     if (!query.trim()) return [];
@@ -78,7 +78,7 @@ export const useSearchActions = (
       console.error('❌ Error searching groups via API:', error);
     }
 
-    // Fallback to local search
+    // Fallback to local search only if API fails
     const localResults = groups.filter(group => 
       group.name.toLowerCase().includes(query.toLowerCase()) ||
       group.description?.toLowerCase().includes(query.toLowerCase())

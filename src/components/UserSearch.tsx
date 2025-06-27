@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,17 +25,29 @@ const UserSearch: React.FC<UserSearchProps> = ({ onBack, onStartChat }) => {
   
   // Debounce the search query to prevent endless loops
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  
+  // Use ref to track if we're currently searching to prevent duplicate calls
+  const isSearchingRef = useRef(false);
+  const lastSearchQueryRef = useRef('');
 
   const performSearch = useCallback(async (query: string) => {
+    // Prevent duplicate searches
+    if (isSearchingRef.current || lastSearchQueryRef.current === query) {
+      return;
+    }
+
     if (!query.trim()) {
       setUserResults([]);
       setGroupResults([]);
       setHasSearched(false);
+      setLoading(false);
+      lastSearchQueryRef.current = '';
       return;
     }
 
-    if (loading) return; // Prevent multiple simultaneous searches
-
+    // Set search state
+    isSearchingRef.current = true;
+    lastSearchQueryRef.current = query;
     setLoading(true);
     setHasSearched(true);
     
@@ -55,13 +67,14 @@ const UserSearch: React.FC<UserSearchProps> = ({ onBack, onStartChat }) => {
       setGroupResults([]);
     } finally {
       setLoading(false);
+      isSearchingRef.current = false;
     }
-  }, [searchUsers, searchGroups, loading]);
+  }, [searchUsers, searchGroups]);
 
   // Trigger search when debounced query changes
   useEffect(() => {
     performSearch(debouncedSearchQuery);
-  }, [debouncedSearchQuery, performSearch]);
+  }, [debouncedSearchQuery]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
