@@ -7,7 +7,7 @@ import { saveToStorage } from '@/utils/localStorage';
 export const useChatActions = (
   currentUser: User | null,
   chats: Chat[],
-  setChats: (chats: Chat[]) => void,
+  setChats: (chats: Chat[] | ((prev: Chat[]) => Chat[])) => void,
   users: User[]
 ) => {
   const startDirectChat = (userId: string): string => {
@@ -196,18 +196,20 @@ export const useChatActions = (
     }
 
     // Update local state
-    const updatedChats = chats.map(c => 
-      c.id === chatId
-        ? { 
-            ...c, 
-            messages: [...c.messages, newMessage],
-            lastMessage: newMessage,
-            updatedAt: new Date()
-          }
-        : c
-    );
-    setChats(updatedChats);
-    saveToStorage.chats(updatedChats);
+    setChats(prev => {
+      const updatedChats = prev.map(c => 
+        c.id === chatId
+          ? { 
+              ...c, 
+              messages: [...c.messages, newMessage],
+              lastMessage: newMessage,
+              updatedAt: new Date()
+            }
+          : c
+      );
+      saveToStorage.chats(updatedChats);
+      return updatedChats;
+    });
   };
 
   const sendTyping = (chatId: string, otherUserId: string) => {
