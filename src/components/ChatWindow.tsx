@@ -13,12 +13,15 @@ interface ChatWindowProps {
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
   const [message, setMessage] = useState('');
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { chats, users, currentUser, sendMessage } = useUser();
+  const { chats, users, currentUser, sendMessage, sendTyping, sendStopTyping, onlineUsers, typingUsers } = useUser();
 
   const chat = chats.find(c => c.id === chatId);
   const otherUserId = chat?.participants.find(id => id !== currentUser?.id);
   const otherUser = users.find(u => u.id === otherUserId);
+  const isOtherUserOnline = otherUserId ? onlineUsers.includes(otherUserId) : false;
+  const isOtherUserTyping = otherUserId ? typingUsers.has(otherUserId) : false;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,6 +35,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
     if (message.trim()) {
       sendMessage(chatId, message.trim());
       setMessage('');
+      
+      // Stop typing when message is sent
+      if (otherUserId) {
+        sendStopTyping(chatId, otherUserId);
+      }
     }
   };
 
@@ -41,6 +49,37 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
       handleSendMessage();
     }
   };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessage(e.target.value);
+    
+    // Send typing indicator
+    if (otherUserId && e.target.value.trim()) {
+      sendTyping(chatId, otherUserId);
+      
+      // Clear existing timeout
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+      
+      // Set new timeout to stop typing after 2 seconds of inactivity
+      const newTimeout = setTimeout(() => {
+        sendStopTyping(chatId, otherUserId);
+      }, 2000);
+      
+      setTypingTimeout(newTimeout);
+    } else if (otherUserId && !e.target.value.trim()) {
+      sendStopTyping(chatId, otherUserId);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+    };
+  }, [typingTimeout]);
 
   if (!chat) {
     return (
@@ -58,17 +97,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
           <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <Avatar>
-            <AvatarFallback>
-              {otherUser?.name?.charAt(0)?.toUpperCase() || 'A'}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative">
+            <Avatar>
+              <AvatarFallback>
+                {otherUser?.name?.charAt(0)?.toUpperCase() || 'A'}
+              </AvatarFallback>
+            </Avatar>
+            {isOtherUserOnline && (
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+            )}
+          </div>
           <div>
             <h2 className="font-semibold">
               {otherUser?.name || 'Anonymous User'}
             </h2>
             <p className="text-sm text-gray-500">
-              {chat.type === 'direct' ? 'Direct Message' : 'Group Chat'}
+              {isOtherUserOnline ? 'Online' : 'Offline'}
             </p>
           </div>
         </div>
@@ -120,6 +164,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
             );
           })
         )}
+        
+        {/* Typing Indicator */}
+        {isOtherUserTyping && (
+          <div className="flex justify-start">
+            <div className="max-w-xs lg:max-w-md">
+              <p className="text-xs text-gray-500 mb-1 px-3">
+                {otherUser?.name || 'Anonymous'}
+              </p>
+              <div className="bg-white border shadow-sm rounded-lg px-4 py-2">
+                <p className="text-gray-500 italic">typing...</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div ref={messagesEndRef} />
       </div>
 
@@ -129,7 +188,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
           <Input
             placeholder="Type your message..."
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleInputChange}
             onKeyPress={handleKeyPress}
             className="flex-1"
           />

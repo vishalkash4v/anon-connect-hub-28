@@ -1,6 +1,6 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiService } from '@/services/apiService';
+import { socketService } from '@/services/socketService';
 import { toast } from '@/hooks/use-toast';
 
 export interface User {
@@ -51,6 +51,8 @@ interface UserContextType {
   groups: Group[];
   chats: Chat[];
   loading: boolean;
+  onlineUsers: string[];
+  typingUsers: Map<string, string>;
   createUser: (userData: Partial<User>) => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<void>;
   getProfile: (userId: string) => Promise<User | null>;
@@ -61,6 +63,8 @@ interface UserContextType {
   openGroupChat: (groupId: string, lastMessageId?: string, limit?: number) => Promise<Message[]>;
   openOneToOneChat: (otherUserId: string, lastMessageId?: string, limit?: number) => Promise<Message[]>;
   sendMessage: (chatId: string, content: string) => void;
+  sendTyping: (chatId: string, otherUserId: string) => void;
+  sendStopTyping: (chatId: string, otherUserId: string) => void;
   searchUsers: (query: string) => Promise<User[]>;
   searchGroups: (query: string) => Promise<Group[]>;
   globalSearch: (query: string) => Promise<any[]>;
@@ -74,6 +78,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [groups, setGroups] = useState<Group[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     // Load data from localStorage
@@ -95,6 +101,82 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setChats(JSON.parse(savedChats));
     }
   }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      // Initialize socket connection
+      socketService.connect();
+      setTimeout(() => {
+        socketService.join(currentUser.id);
+      }, 1000);
+
+      // Set up socket event listeners
+      socketService.onMessage((message) => {
+        const newMessage: Message = {
+          id: message.id,
+          senderId: message.fromUserId,
+          content: message.message,
+          timestamp: new Date(message.timestamp),
+          type: 'text'
+        };
+
+        setChats(prev => {
+          const chatId = message.type === 'private' 
+            ? prev.find(c => 
+                c.type === 'direct' && 
+                c.participants.includes(currentUser.id) && 
+                c.participants.includes(message.fromUserId)
+              )?.id
+            : message.groupId;
+
+          if (!chatId) return prev;
+
+          const updated = prev.map(chat => 
+            chat.id === chatId
+              ? { 
+                  ...chat, 
+                  messages: [...chat.messages, newMessage],
+                  lastMessage: newMessage,
+                  updatedAt: new Date()
+                }
+              : chat
+          );
+          localStorage.setItem('chats', JSON.stringify(updated));
+          return updated;
+        });
+      });
+
+      socketService.onUserOnline((userId) => {
+        setOnlineUsers(prev => [...prev.filter(id => id !== userId), userId]);
+      });
+
+      socketService.onUserOffline((userId) => {
+        setOnlineUsers(prev => prev.filter(id => id !== userId));
+      });
+
+      socketService.onTyping((fromUserId) => {
+        setTypingUsers(prev => {
+          const newMap = new Map(prev);
+          newMap.set(fromUserId, 'typing');
+          return newMap;
+        });
+      });
+
+      socketService.onStopTyping((fromUserId) => {
+        setTypingUsers(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(fromUserId);
+          return newMap;
+        });
+      });
+    }
+
+    return () => {
+      if (!currentUser) {
+        socketService.disconnect();
+      }
+    };
+  }, [currentUser]);
 
   const createUser = async (userData: Partial<User>) => {
     setLoading(true);
@@ -482,6 +564,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendMessage = (chatId: string, content: string) => {
     if (!currentUser) return;
 
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) return;
+
     const newMessage: Message = {
       id: Date.now().toString(),
       senderId: currentUser.id,
@@ -490,19 +575,58 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       type: 'text'
     };
 
+    // Send via socket
+    if (chat.type === 'direct') {
+      const otherUserId = chat.participants.find(id => id !== currentUser.id);
+      if (otherUserId) {
+        socketService.sendMessage({
+          fromUserId: currentUser.id,
+          toUserId: otherUserId,
+          message: content,
+          type: 'private'
+        });
+      }
+    } else if (chat.type === 'group' && chat.groupId) {
+      socketService.sendMessage({
+        fromUserId: currentUser.id,
+        groupId: chat.groupId,
+        message: content,
+        type: 'group'
+      });
+    }
+
+    // Update local state
     setChats(prev => {
-      const updated = prev.map(chat => 
-        chat.id === chatId
+      const updated = prev.map(c => 
+        c.id === chatId
           ? { 
-              ...chat, 
-              messages: [...chat.messages, newMessage],
+              ...c, 
+              messages: [...c.messages, newMessage],
               lastMessage: newMessage,
               updatedAt: new Date()
             }
-          : chat
+          : c
       );
       localStorage.setItem('chats', JSON.stringify(updated));
       return updated;
+    });
+  };
+
+  const sendTyping = (chatId: string, otherUserId: string) => {
+    if (!currentUser) return;
+    
+    socketService.sendTyping({
+      fromUserId: currentUser.id,
+      toUserId: otherUserId
+    });
+  };
+
+  const sendStopTyping = (chatId: string, otherUserId: string) => {
+    if (!currentUser) return;
+    
+    socketService.sendStopTyping({
+      fromUserId: currentUser.id,
+      toUserId: otherUserId
     });
   };
 
@@ -593,6 +717,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       groups,
       chats,
       loading,
+      onlineUsers,
+      typingUsers,
       createUser,
       updateUser,
       getProfile,
@@ -603,6 +729,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       openGroupChat,
       openOneToOneChat,
       sendMessage,
+      sendTyping,
+      sendStopTyping,
       searchUsers,
       searchGroups,
       globalSearch
