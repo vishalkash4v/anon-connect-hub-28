@@ -63,17 +63,23 @@ const HomePage: React.FC<HomePageProps> = ({
     return () => clearTimeout(debounceTimer);
   }, [searchQuery, searchUsers]);
 
-  const handleRandomChat = () => {
+  const handleRandomChat = async () => {
     setShowRandomChat(true);
-    setTimeout(() => {
-      const chatId = startRandomChat();
+    try {
+      const chatId = await startRandomChat();
+      setTimeout(() => {
+        setShowRandomChat(false);
+        if (chatId) {
+          onStartChat(chatId);
+        } else {
+          alert('No users available for random chat!');
+        }
+      }, 2000);
+    } catch (error) {
+      console.error('Random chat error:', error);
       setShowRandomChat(false);
-      if (chatId) {
-        onStartChat(chatId);
-      } else {
-        alert('No users available for random chat!');
-      }
-    }, 2000);
+      alert('Failed to start random chat. Please try again.');
+    }
   };
 
   const handleJoinGroup = (group: any) => {
